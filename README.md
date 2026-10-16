@@ -1,6 +1,6 @@
 # go-train-skills
 
-![gopher-train](./gopher-claude.png)
+<img src="gopher-claude.png" alt="Gopher Express" width="300" />
 
 Repository with architecture tips and go-train tool skill for Claude.
 
