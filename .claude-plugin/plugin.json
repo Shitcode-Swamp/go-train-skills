@@ -1,7 +1,7 @@
 {
   "name": "go-train-skills",
   "description": "Go development loop (planner, test writer, coder, reviewer, attention gatherer) with code style and go-train-framework architecture skills.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "vkyl"
   },
