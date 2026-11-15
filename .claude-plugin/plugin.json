@@ -1,0 +1,10 @@
+{
+  "name": "go-train-skills",
+  "description": "Go development loop (planner, test writer, coder, reviewer, attention gatherer) with code style and go-train-framework architecture skills.",
+  "version": "0.1.0",
+  "author": {
+    "name": "vkyl"
+  },
+  "repository": "https://github.com/Shitcode-Swamp/go-train-skills",
+  "keywords": ["go", "golang", "code-style", "architecture", "go-train-framework", "agents"]
+}

@@ -73,7 +73,7 @@ When called on existing code (outside the loop), test the implementation as desc
 
 Before writing any test code, load the project's code-styling skills:
 
-- Look in `.claude/skills/` for skills about code style, formatting, naming, or Go conventions, and invoke each relevant one with the Skill tool.
+- Use the code-style skills of the `go-train-skills` plugin, plus any style skills the project itself defines in `.claude/skills/`.
 - Apply them to every test file you write or edit.
 - When a styling skill conflicts with the generic conventions in this prompt, the skill wins.
 - If no styling skills exist yet, fall back to the conventions below and say so in your report.

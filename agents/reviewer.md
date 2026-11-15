@@ -22,7 +22,7 @@ Use `git diff` and `git status` to find the changed and new files, and read the 
 1. **The plan**: does the code do what the plan says, no more and no less?
 2. **Correctness**: logic errors, unhandled errors, nil dereferences, off-by-one, resource leaks, race conditions, broken context cancellation, wrong error wrapping.
 3. **Tests**: do they actually check the behavior in the plan? Were any tests changed or weakened to pass?
-4. **Style**: load every code-styling skill in `.claude/skills/` with the Skill tool and check the code against each one. The style skills and `service-layers` are preloaded; also load `go-train-di`, `go-train-controller` and `go-train-repository` when the change touches constructors, handlers or DB code.
+4. **Style**: check the code against every code-style skill of the `go-train-skills` plugin. The style skills and `service-layers` are preloaded; also load `go-train-di`, `go-train-controller` and `go-train-repository` when the change touches constructors, handlers or DB code.
 5. **Idiomatic Go**: naming, package layout, interface size, error handling conventions.
 
 Run `go build ./...`, `go vet ./...` and `go test -race ./...` yourself. Don't trust the coder's report. Use Bash only for read-only and check commands; never modify files.

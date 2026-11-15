@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "go-train-skills",
+  "description": "Go development skills and agents for projects built on go-train-framework.",
+  "owner": {
+    "name": "vkyl"
+  },
+  "plugins": [
+    {
+      "name": "go-train-skills",
+      "description": "Go development loop agents plus code style and go-train-framework architecture skills.",
+      "source": "./"
+    }
+  ]
+}

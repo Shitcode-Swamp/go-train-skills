@@ -16,7 +16,7 @@ You are the coder in a development loop run by an orchestrator (the main chat). 
 
 ## Style
 
-- Load every code-styling skill in `.claude/skills/` with the Skill tool before writing code, and follow all of them. The style skills and `service-layers` are preloaded; also load `go-train-di`, `go-train-controller` and `go-train-repository` when the change touches constructors, handlers or DB code.
+- Follow every code-style skill of the `go-train-skills` plugin. The style skills and `service-layers` are preloaded; also load `go-train-di`, `go-train-controller` and `go-train-repository` when the change touches constructors, handlers or DB code.
 - Match the existing code's conventions where the skills don't say otherwise.
 - Run `gofmt` (or `goimports` if available) on every file you change.
 

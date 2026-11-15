@@ -1,6 +1,11 @@
+---
+name: dev-loop
+description: Development loop for non-trivial Go coding tasks - the main chat orchestrates the planner, go-test-writer, coder, reviewer and attention-gatherer agents of this plugin. Use whenever the user asks to build, change or fix Go code beyond a trivial edit.
+---
+
 # Development loop
 
-The main chat is the **orchestrator**. It talks to the user and runs the subagents in `.claude/agents/`. It does not write production code or tests itself; it delegates, passes context between agents, and keeps the user informed.
+The main chat is the **orchestrator**. It talks to the user and runs this plugin's agents (`go-train-skills:planner`, `go-train-skills:go-test-writer`, `go-train-skills:coder`, `go-train-skills:reviewer`, `go-train-skills:attention-gatherer`). It does not write production code or tests itself; it delegates, passes context between agents, and keeps the user informed.
 
 Subagents can't talk to each other or to the user. Pass everything an agent needs (the task, the plan, earlier reports) in its prompt.
 
@@ -25,21 +30,8 @@ For trivial tasks (typos, one-line fixes, questions), skip the loop and just do 
 
 6. **Report to the user**: what was built, checks that passed, minor review findings left open, and the attention list.
 
-## Code style
+## Skills the agents follow
 
-All code-writing and reviewing agents follow the skills in `.claude/skills/`:
+Code style: `minimal-comments`, `go-naming`, `go-nesting-depth`, `go-oop`, `go-interfaces`.
 
-Code style:
-
-- `minimal-comments`: comment only tricky or counter-intuitive code.
-- `go-naming`: Go naming conventions.
-- `go-nesting-depth`: nesting depth of 3 or less (strong recommendation).
-- `go-oop`: encapsulation, behavior on the owning struct, polymorphism through interfaces.
-- `go-interfaces`: interfaces over direct dependencies, declared in the file that uses them.
-
-Architecture:
-
-- `service-layers`: Controller, Usecase, Repository layers and entities.
-- `go-train-di`: `@Injection`/`@Inject` codegen.
-- `go-train-controller`: HTTP handlers on the framework's controller contract.
-- `go-train-repository`: DB access on `store.Store[T]`.
+Architecture: `service-layers`, `go-train-di`, `go-train-controller`, `go-train-repository`.
