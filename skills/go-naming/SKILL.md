@@ -14,4 +14,5 @@ description: Go naming conventions for packages, files, variables, functions, st
 - **Single-method interfaces** use the `-er` suffix where it reads naturally (`Reader`, `orderSaver`).
 - **Receivers:** short (one or two letters), the same for every method of a type, never `this` or `self`.
 - **Errors:** sentinel values `ErrXxx`, error types `XxxError`.
+- **Names that hide several concerns:** if a type's name needs "And", "Manager" or similar catch-all words, it likely mixes concerns. Split it (see single responsibility in `go-oop`).
 - **Length follows scope:** short names for small scopes (`i`, `u`), descriptive names for package-level and exported identifiers.
