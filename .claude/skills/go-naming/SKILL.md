@@ -1,0 +1,17 @@
+---
+name: go-naming
+description: Go naming conventions for packages, files, variables, functions, structs, methods, interfaces and errors. Use whenever writing, editing or reviewing Go code.
+---
+
+# Go Naming
+
+- **Packages:** short, lowercase, one word, no underscores or `mixedCaps` (`order`, not `order_service` or `orderService`). Avoid `util`, `common`, `helpers`.
+- **Files:** lowercase, words separated by `_` (`order_repository.go`, `order_test.go`).
+- **Identifiers:** `MixedCaps` for exported, `mixedCaps` for unexported. No `snake_case`, no `SCREAMING_CASE` constants.
+- **Acronyms** keep one case: `ID`, `URL`, `HTTP` (`userID`, `ParseURL`, `HTTPClient`), not `UserId` or `HttpClient`.
+- **No stutter:** the package name is part of the name. `order.Service`, not `order.OrderService`.
+- **Getters** have no `Get` prefix: `u.Name()`, setter `u.SetName()`.
+- **Single-method interfaces** use the `-er` suffix where it reads naturally (`Reader`, `orderSaver`).
+- **Receivers:** short (one or two letters), the same for every method of a type, never `this` or `self`.
+- **Errors:** sentinel values `ErrXxx`, error types `XxxError`.
+- **Length follows scope:** short names for small scopes (`i`, `u`), descriptive names for package-level and exported identifiers.
