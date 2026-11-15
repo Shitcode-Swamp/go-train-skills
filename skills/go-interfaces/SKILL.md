@@ -20,30 +20,22 @@ An interface is a contract owned by the code that **uses** it, so declare it in 
 
 - Never import an interface from the package that implements it, or from a shared `interfaces`/`contracts` package.
 - If another file or package needs a similar interface, it declares its own. **This duplication is intentional:** changing what `a.go` needs then touches only `a.go`. Reviewers must not flag it as duplicated code.
-- Two files in one package can't share a name, so name each interface after what that consumer needs (`orderSaver` in one file, `orderFinder` in another). Each one lists only the methods its file calls.
+- Two files in one package can't share a name, so name each interface after what that consumer needs (`paymentCharger` in one file, `paymentRefunder` in another). Each one lists only the methods its file calls.
 - Keep the interface unexported unless code outside the package needs to name it.
 - **Exception: go-train-framework's own interfaces** (`store.Store[T]`, `store.AggregateStore[T, U]`, `store.Transactor`) are used directly. They are a stable framework contract, not something another layer of this project owns.
 
 ```go
-// usecase/create_order.go
-type orderSaver interface {
-    Save(ctx context.Context, o *entity.Order) error
-}
-
-type CreateOrder struct {
-    orders orderSaver
-}
-
-func NewCreateOrder(orders orderSaver) *CreateOrder {
-    return &CreateOrder{orders: orders}
+// source/usecases/orders/pay.go
+type paymentCharger interface {
+    Charge(ctx context.Context, orderID string) error
 }
 ```
 
 ```go
-// usecase/get_order.go
-type orderFinder interface {
-    ByID(ctx context.Context, id string) (*entity.Order, error)
+// source/usecases/orders/refund.go
+type paymentRefunder interface {
+    Refund(ctx context.Context, orderID string) error
 }
 ```
 
-The repository implements both without knowing either exists.
+The payments client implements both without knowing either exists.

@@ -1,6 +1,6 @@
 ---
 name: go-train-di
-description: Wiring dependencies with the go-train-framework DI codegen - @Injection and @Inject annotations, the no-getter flag, and regenerating AppContext. Use whenever adding or changing a constructor in a backend service, or reviewing how dependencies are wired.
+description: Wiring dependencies with the go-train-framework DI codegen - @Injection and @Inject annotations, the no-getter flag, constructor limits, configuring and regenerating AppContext in source/app. Use whenever adding or changing a constructor in a backend service, or reviewing how dependencies are wired.
 ---
 
 # go-train DI
@@ -11,9 +11,18 @@ Framework: https://github.com/Shitcode-Swamp/go-train-framework. Never hand-writ
 
 - `// @Injection(token)` in a constructor's doc comment registers it. Tokens are unique `camelCase` names.
 - `/* @Inject(token) */` inline after a constructor parameter asks for the dependency registered under `token`.
-- `@Injection(token, no-getter)` skips the `AppContext` getter. Use it for everything nothing outside `AppContext` needs to reach, which is usually everything except controllers.
+- `@Injection(token, no-getter)` skips the `AppContext` getter. Use it for everything `source/main` doesn't need, which is everything except the root controller.
 - Parameters are the consumer's own interfaces (or framework interfaces like `store.Store[T]`).
 - Declaration order doesn't matter; the generator resolves it.
+
+```go
+// @Injection(ordersController, no-getter)
+func NewOrdersController(orders orderPayer /* @Inject(ordersUsecase) */) *OrdersController {
+    return &OrdersController{orders: orders}
+}
+```
+
+These annotations are required by the codegen and are allowed by `minimal-comments`.
 
 ## Constructor limits
 
@@ -25,38 +34,54 @@ The generator types each `AppContext` field as `*<constructor's package>.<return
 To inject such a value, wrap it in a local struct that embeds it, and register that struct's constructor:
 
 ```go
-type OrderStore struct {
-    store.Store[entity.Order]
+type OrdersRepository struct {
+    store.Store[order.Order]
 }
 
-type Postgres struct {
+type DB struct {
     *pgxpool.Pool
 }
 ```
 
-```go
-// @Injection(orderController)
-func NewOrderController(payOrder orderPayer /* @Inject(payOrder) */) *OrderController {
-    return &OrderController{payOrder: payOrder}
-}
-```
-
-These annotations are required by the codegen and are allowed by `minimal-comments`.
-
-## Regenerating
+## Configuration and regenerating
 
 Run after adding or changing any annotated constructor:
 
 ```sh
-go tool go-train -root=./internal -ctxPath=./internal/app
+go tool go-train -root=./source -ctxPath=./source/app
 ```
 
 - Install if needed: `go get -tool github.com/Shitcode-Swamp/go-train-framework/cmd/go-train@latest`.
-- Match `-root` and `-ctxPath` to the project, or pass a `go-train.yaml` with `-config`.
+- Instead of flags, a config file passed with `-config=./go-train.yaml` can set the paths. `root` is the folder to scan, `output` the folder to write to. Flags override the file.
+
+  ```yaml
+  root: ./source
+  output: ./source/app
+  ```
+
+- It writes a single `app.go` in package `app_context` to `source/app`. Keep nothing else in that folder. The package name comes from the framework, so it is an accepted exception to `go-naming`.
 - The generated file is output only. Never edit it by hand; change the annotations and regenerate.
+- Getters capitalise only the first letter of the token: `rootController` becomes `Rootcontroller()`.
+
+## Execution point
+
+`source/main` builds the context and runs the root controller:
+
+```go
+// source/main/main.go
+package main
+
+func main() {
+    ctx := app_context.NewAppContext()
+    if err := ctx.Rootcontroller().Run(":8080"); err != nil {
+        log.Fatal(err)
+    }
+}
+```
 
 ## Review checklist
 
 - [ ] Every constructor has `@Injection`, every injected parameter has `@Inject`.
 - [ ] Every `@Injection` constructor returns one pointer to a local, non-generic struct.
-- [ ] The generated `AppContext` is up to date and not hand-edited.
+- [ ] Only the root controller has a getter.
+- [ ] The generated `source/app/app.go` is up to date and not hand-edited.
