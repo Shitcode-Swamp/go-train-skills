@@ -1,128 +1,162 @@
 ---
 name: service-layers
-description: Backend service architecture - Controller, Usecase, Repository layers plus domain entities, what each layer may do, and the source/ folder structure with one package per entity, usecase and repository. Use whenever planning, writing or reviewing backend service code. Framework details live in go-train-di, go-train-controller and go-train-repository.
+description: Backend service architecture - Controller, Usecase, Repository layers plus entities with their DB records, what each layer may do, the source/ and test/ folder layout, entity IDs. Use whenever planning, writing or reviewing backend service code. Framework details live in go-train-di, go-train-controller and go-train-repository.
 ---
 
 # Service Layers
 
 ```
-Controller  ->  Usecase  ->  store.Store[T]  ->  DB
+Controller  ->  Usecase  ->  store.Store[XRecord]  ->  DB
                    |
                    +------>  external API clients
 ```
 
-Every arrow is an interface. The controller and API-client arrows use interfaces declared in the consuming file (`go-interfaces` skill); the DB arrow uses the framework's `store` interfaces directly. A layer never builds or names the concrete type of another layer. All wiring goes through DI (`go-train-di` skill).
+Every arrow is an interface. The controller and API-client arrows use interfaces declared by the consumer (`go-interfaces` skill); the DB arrow uses the framework's `store` interfaces directly. A layer never builds or names the concrete type of another layer.
+
+The first entity built in a service is the reference implementation: copy its shape for every new entity.
 
 ## Folder structure
 
 ```
+main.go                         builds AppContext, hands it to controller.New, runs the server
+go-train.yaml                   DI codegen config
+migrations/                     plain SQL, applied by hand (NNNNNN_name.up.sql / .down.sql)
 source/
-  app/                    generated DI root (AppContext), never edited by hand
-  main/                   execution point: builds AppContext and runs the root controller
-  domain/
-    order/                one package per domain entity
-  usecases/
-    orders/               one package per usecase
-  repositories/
-    orders/               one package per repository
-  controllers/            root controller: creates the server, registers every controller
-    users/                one package per controller (UsersController)
-    orders/
-  utils/                  utility functions and constants
+├── app/app.go                  GENERATED DI container: never edit by hand
+├── entity/                     ONE package: domain objects + their DB records
+│   ├── product.go
+│   └── product_record.go
+├── repository/                 ONE package: DB connection + one thin store per entity
+│   ├── postgres.go
+│   └── product_store.go
+├── usecases/<entity>/          one package per entity
+│   ├── usecase.go              Usecase struct + constructor + shared helpers (filters)
+│   └── create.go get.go list.go edit.go delete.go   one action per file
+├── controller/
+│   ├── controller.go           New(app): builds the router and every feature controller
+│   └── <entity>/               one package per entity
+│       ├── controller.go       usecase interface, Controller, NewController, Register, shared DTOs
+│       ├── errors.go           error sentinels → HTTP status
+│       └── create.go get.go list.go edit.go delete.go   one route per file
+└── utils/<name>/               value objects and helpers, e.g. utils/money (Price)
+test/                           mirrors source/; no _test.go files next to production code
 ```
 
-- **One package per item:** every domain entity, usecase, repository and controller gets its own package inside its layer folder. This keeps names and package-level variables from mixing.
-- **Layer structs** are named after the item and the layer: `UsersController`, `OrdersUsecase`, `OrdersRepository`. This is a project convention and takes precedence over the no-stutter rule in `go-naming`.
-- Packages from different layers often share a name (`usecases/orders`, `repositories/orders`). Alias imports when one file needs both.
+- `entity` and `repository` are single packages: entities are referenced everywhere as `entity.Product`, stores as `repository.ProductStore`.
+- `usecases/<entity>` and `controller/<entity>` are one package per entity and share the entity's name (`usecases/product`, `controller/product`). The controller imports the usecase package with an alias: `productusecase`.
+- No stutter (`go-naming`): `product.Usecase`, `product.Controller`, `repository.ProductStore`, never `product.ProductController`.
 
 ## Controller
 
-Parses user input into the usecase's input types, calls a usecase, and maps errors to status codes. No business logic, no DB access. Details: `go-train-controller`.
+Parses user input into the usecase's input types, calls a usecase, maps errors to status codes. No business logic, no DB access. Details: `go-train-controller`.
 
 ## Usecase
 
 Business logic only:
 
-- Works with **domain entities**, not HTTP requests or DB rows.
-- Gets every dependency injected: `store.Store[T]` for data, interfaces of its own for external API clients, clocks and ID generators. **Never** a direct dependency, even for a "simple" API call.
-- Returns its own business-rule errors (`order.ErrAlreadyPaid`) and passes `store` errors (`store.ErrNotFound`) through unchanged. The controller maps both.
+- One `Usecase` struct per entity in `usecase.go`, one exported method per action, each action in its own file together with its input type.
+- Input types are named without stutter: `product.CreateInput`, `product.EditInput`.
+- Works with **entities**; uses `store.Store[entity.XRecord]` directly and converts with `.Record()` / `.Product()` (`go-train-repository`).
+- Gets every dependency injected: stores for data, interfaces of its own for external API clients, clocks and ID generators. **Never** a direct dependency, even for a "simple" API call.
+- Returns entity validation errors and `store` errors (`store.ErrNotFound`) unchanged. The controller maps them.
 - Never imports `net/http`, gin, controller packages or DB drivers.
 
-## Domain entities
+## Entities
 
-Structs with **behavior**. An entity validates and changes its own state through methods (`o.Pay()`), so the usecase coordinates and the entity enforces the rules. Entities depend on no other layer.
+Structs with **behavior** that protect their invariants (`go-oop`):
 
-## Repository
+- Domain fields are **unexported** and read through getters (`p.Price()`). Fields hold real value objects (`money.Price`), not primitives.
+- Two validating constructors:
+  - `NewProduct(...)` for a brand-new entity. It generates the ID.
+  - `RestoreProduct(id, ...)` to rebuild one from stored data. `NewProduct` calls it, so validation lives in one place.
+- State changes go through methods (`p.Edit(...)`) that validate.
+- Entities depend on no other layer.
 
-The only code that talks to the DB: injectable per-entity stores built on the framework, plus custom queries. Details: `go-train-repository`.
+### DB records
 
-## Example: entity and usecase
+Building the entity from DB data is the **entity's job**, so the storage shape lives next to it in `entity/<name>_record.go`:
+
+- `ProductRecord` has exported, `store`-tagged fields. It is what the store reads and writes.
+- `p.Record()` converts the entity to a record.
+- `r.Product() (Product, error)` converts back through `RestoreProduct`, returning an error for bad stored data instead of panicking.
+- The framework maps exactly one tagged field to one column, so nested structs can't be stored. Split value objects into columns: `price_amount`, `price_currency`.
 
 ```go
-// source/domain/order/order.go
-package order
-
-var ErrAlreadyPaid = errors.New("order already paid")
-
-type Order struct {
-    ID   string `store:"id,pk"`
-    Paid bool   `store:"paid"`
+// source/entity/product.go
+type Product struct {
+    id    string
+    name  string
+    price money.Price
 }
 
-func (o *Order) Pay() error {
-    if o.Paid {
-        return ErrAlreadyPaid
+func NewProduct(name string, price money.Price) (Product, error) {
+    return RestoreProduct(uuid.NewString(), name, price)
+}
+
+func RestoreProduct(id, name string, price money.Price) (Product, error) {
+    if id == "" {
+        return Product{}, ErrEmptyProductID
     }
-    o.Paid = true
-    return nil
+    p := Product{id: id}
+    if err := p.Edit(name, price); err != nil {
+        return Product{}, err
+    }
+    return p, nil
 }
+
+func (p Product) ID() string          { return p.id }
+func (p Product) Price() money.Price  { return p.price }
 ```
 
 ```go
-// source/usecases/orders/orders.go
-package orders
-
-var orderID = filters.Field[order.Order, string]("id")
-
-type paymentGateway interface {
-    Charge(ctx context.Context, orderID string) error
+// source/entity/product_record.go
+type ProductRecord struct {
+    ID            string `store:"id,pk"`
+    Name          string `store:"name"`
+    PriceAmount   int64  `store:"price_amount"`
+    PriceCurrency string `store:"price_currency"`
 }
 
-type OrdersUsecase struct {
-    orders   store.Store[order.Order]
-    payments paymentGateway
+func (p Product) Record() ProductRecord {
+    return ProductRecord{ID: p.id, Name: p.name, PriceAmount: p.price.Amount(), PriceCurrency: p.price.Currency()}
 }
 
-// @Injection(ordersUsecase, no-getter)
-func NewOrdersUsecase(
-    orders store.Store[order.Order] /* @Inject(ordersRepository) */,
-    payments paymentGateway /* @Inject(paymentsClient) */,
-) *OrdersUsecase {
-    return &OrdersUsecase{orders: orders, payments: payments}
-}
-
-func (uc *OrdersUsecase) Pay(ctx context.Context, id string) error {
-    byID := orderID.Is(filters.Eq(id))
-    o, err := uc.orders.One(ctx, byID)
+func (r ProductRecord) Product() (Product, error) {
+    price, err := money.NewPrice(r.PriceAmount, r.PriceCurrency)
     if err != nil {
-        return err
+        return Product{}, fmt.Errorf("restore product %s: %w", r.ID, err)
     }
-    if err := o.Pay(); err != nil {
-        return err
-    }
-    if err := uc.payments.Charge(ctx, o.ID); err != nil {
-        return fmt.Errorf("charge order %s: %w", o.ID, err)
-    }
-    _, err = uc.orders.Update(ctx, byID, o)
-    return err
+    return RestoreProduct(r.ID, r.Name, price)
 }
 ```
+
+### Value objects
+
+Value objects (`utils/money.Price`) validate in their constructor and implement `MarshalJSON` / `UnmarshalJSON` (with validation), so controllers use them directly in request and response types instead of separate DTOs.
+
+## IDs
+
+- IDs are **random UUID strings generated in the app** by `NewX`, with `uuid.NewString()`. The column is `UUID PRIMARY KEY` with no DB default.
+- Reason: the framework's `Insert` always writes the PK column, so app-generated IDs work with it as is, with no custom insert SQL.
+- Controllers validate path IDs with `uuid.Parse` and pass on the canonical form (`id.String()`); anything else is `400`.
+
+## Migrations
+
+The framework has no migration tooling. Schema changes are plain SQL files in `migrations/` (`000001_create_products.up.sql` / `.down.sql`), applied by hand.
+
+## Tests
+
+- All tests live under `test/`, mirroring `source/` (`test/usecases/product/`, `test/entity/`), in external `<pkg>_test` packages that use only the exported API. No `_test.go` files next to production code.
+- Coverage needs `go test -coverpkg=./source/... ./test/...`, since tests live in other packages.
+- Integration tests carry `//go:build integration` and `t.Skip` unless `POSTGRES_TEST_DSN` is set. Run them with `go test -tags integration ./test/...`.
 
 ## Review checklist
 
-- [ ] Code sits in the right `source/` folder, one package per entity, usecase, repository and controller.
+- [ ] Code sits in the right folder: `entity`, `repository` as single packages; `usecases/<entity>` and `controller/<entity>` per entity; one action or route per file.
+- [ ] Entity fields are unexported, hold value objects, and are built through `NewX` / `RestoreX`; DB shape lives in `XRecord` with `Record()` / `X()`.
+- [ ] IDs are app-generated UUIDs; path IDs are checked with `uuid.Parse`.
 - [ ] No layer constructs or names the concrete type of another layer.
-- [ ] Usecases use `store.Store[T]` directly instead of re-declaring its methods.
+- [ ] Usecases use `store.Store[entity.XRecord]` directly instead of re-declaring its methods.
 - [ ] External APIs are injected into usecases, never called directly.
 - [ ] Controllers hold no business logic; usecases hold no HTTP or DB-driver code.
-- [ ] Rules about one entity's state live on that entity.
+- [ ] Tests are under `test/`, in `<pkg>_test` packages.

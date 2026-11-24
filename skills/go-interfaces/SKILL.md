@@ -1,6 +1,6 @@
 ---
 name: go-interfaces
-description: Depend on interfaces instead of concrete types, inject them through constructors, and declare each interface in the file that uses it (duplication across files is intentional). Use whenever a Go type needs a dependency, or when writing, editing or reviewing Go code.
+description: Depend on interfaces instead of concrete types, inject them through constructors, and declare each interface in the consumer's package next to the struct that holds it, named by what it is (duplication across packages is intentional). Use whenever a Go type needs a dependency, or when writing, editing or reviewing Go code.
 ---
 
 # Interfaces
@@ -16,26 +16,33 @@ When a type needs something that does I/O, has side effects, or belongs to anoth
 
 ## Declare interfaces where they are used
 
-An interface is a contract owned by the code that **uses** it, so declare it in the **same file** as that code: if `a.go` depends on it, `a.go` declares it.
+An interface is a contract owned by the code that **uses** it, so declare it in the consumer's package, **next to the struct that holds the dependency** (for a controller, in `controller.go` beside `Controller`).
 
 - Never import an interface from the package that implements it, or from a shared `interfaces`/`contracts` package.
-- If another file or package needs a similar interface, it declares its own. **This duplication is intentional:** changing what `a.go` needs then touches only `a.go`. Reviewers must not flag it as duplicated code.
-- Two files in one package can't share a name, so name each interface after what that consumer needs (`paymentCharger` in one file, `paymentRefunder` in another). Each one lists only the methods its file calls.
+- One interface per dependency, listing every method the consumer calls. Don't split it into per-method interfaces across the files that call them.
+- If another package needs a similar interface, it declares its own. **This duplication is intentional:** changing what one package needs touches only that package. Reviewers must not flag it as duplicated code.
+- Name it by what it is (`usecase`, `productRepository`, `paymentGateway`), not by a single-action role (`productCreator`, `paymentCharger`). See `go-naming`.
 - Keep the interface unexported unless code outside the package needs to name it.
 - **Exception: go-train-framework's own interfaces** (`store.Store[T]`, `store.AggregateStore[T, U]`, `store.Transactor`) are used directly. They are a stable framework contract, not something another layer of this project owns.
 
 ```go
-// source/usecases/orders/pay.go
-type paymentCharger interface {
-    Charge(ctx context.Context, orderID string) error
+// source/controller/product/controller.go
+type usecase interface {
+    Create(ctx context.Context, in productusecase.CreateInput) (entity.Product, error)
+    Get(ctx context.Context, id string) (entity.Product, error)
+}
+
+type Controller struct {
+    products usecase
 }
 ```
 
 ```go
-// source/usecases/orders/refund.go
-type paymentRefunder interface {
+// source/usecases/order/usecase.go
+type paymentGateway interface {
+    Charge(ctx context.Context, orderID string) error
     Refund(ctx context.Context, orderID string) error
 }
 ```
 
-The payments client implements both without knowing either exists.
+The usecase and the payments client implement these without knowing they exist.
